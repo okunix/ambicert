@@ -29,3 +29,15 @@ jobs:
 
       - name: Build
         run: go build -v -o bin/ambicert ./...
+
+      - name: Test with file
+        run: ./bin/ambicert --csr-config csr_config.yml
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ambicert-binaries
+          path: |
+            bin/ambicert
+            my_site.csr
+            private.key
