@@ -26,6 +26,3 @@ emailAddresses:
 ipAddresses:
   - "127.0.0.1"
   - "192.168.1.50"
-
-uris:
-  - "https://identity.example.com/user/123"
