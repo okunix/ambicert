@@ -9,7 +9,7 @@ on:
 jobs:
   build:
     name: Build on GO ${{ matrix.go-version }}
-    runs-on: golang:alpine
+    runs-on: ubuntu-latest
     strategy:
       matrix:
         go-version: ["1.24.x"]
