@@ -29,15 +29,15 @@ type SubjectConfig struct {
 
 func (s SubjectConfig) ToPKIXName() pkix.Name {
 	return pkix.Name{
-		CommonName:        s.CommonName,
-		Country:           s.Country,
-		Organization:      s.Organization,
-		OrganizationalUnit s.OrganizationalUnit,
-		Locality:          s.Locality,
-		Province:          s.Province,
-		StreetAddress:     s.StreetAddress,
-		PostalCode:        s.PostalCode,
-		SerialNumber:      s.SerialNumber,
+		CommonName:         s.CommonName,
+		Country:            s.Country,
+		Organization:       s.Organization,
+		OrganizationalUnit: s.OrganizationalUnit,
+		Locality:           s.Locality,
+		Province:           s.Province,
+		StreetAddress:      s.StreetAddress,
+		PostalCode:         s.PostalCode,
+		SerialNumber:       s.SerialNumber,
 	}
 }
 
@@ -91,14 +91,14 @@ func main() {
 		panic(err)
 	}
 
-	if err := savePEM(cfg.Output, "CERTIFICATE REQUEST", csr); err != nil {
+	if err := savePEM(csrConfig.Output, "CERTIFICATE REQUEST", csr); err != nil {
 		panic(err)
 	}
 	if err := savePEM("private.key", "RSA PRIVATE KEY", x509.MarshalPKCS1PrivateKey(key)); err != nil {
 		panic(err)
 	}
 
-	fmt.Println("Generated CSR for %s in %s\n", cfg.Subject.CommonName, cfg.Output)
+	fmt.Printf("Generated CSR for %s in %s\n", csrConfig.Subject.CommonName, csrConfig.Output)
 }
 
 func generateCrypto(cfg CSRConfig) (*rsa.PrivateKey, []byte, error){
@@ -112,9 +112,9 @@ func generateCrypto(cfg CSRConfig) (*rsa.PrivateKey, []byte, error){
 		DNSNames:        cfg.DNSNames,
 		EmailAddresses:  cfg.EmailAddresses,
 		URIs:            cfg.URIs,
-		ExtraExtensions: cf.ExtraExtensions,
+		ExtraExtensions: cfg.ExtraExtensions,
 	}
 
-	csr, er := x509.CreateCertificateRequest(rand.Reader, &template, key)
+	csr, err := x509.CreateCertificateRequest(rand.Reader, &template, key)
 	return key, csr, err
 }
