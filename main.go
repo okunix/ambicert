@@ -5,7 +5,7 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"crypto/x509/pkix"
-	"encoding pem"
+	"encoding/pem"
 	"flag"
 	"fmt"
 	"net"
