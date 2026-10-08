@@ -1,0 +1,28 @@
+output: "my_site.csr"
+
+signatureAlgorithm: 4
+
+subject:
+  commonName: "example.com"
+  country: ["RU"]
+  organization: ["My Mega Company"]
+  OrganizationalUnit: ["IT Department", "Security Team"]
+  locality: ["Moscow"]
+  province: ["Moscow Region"]
+  streetAddress: ["Red Square, 1"]
+  postalCode: ["101000"]
+  serialNumber: "001-2023"
+
+dnsNames:
+  - "example.com"
+  - "www.example.com"
+  - "api.example.com"
+  - "*.example.com"
+
+emailAddresses:
+  - "admin@example.com"
+  - "devops@example.com"
+
+ipAddresses:
+  - "127.0.0.1"
+  - "192.168.1.50"
