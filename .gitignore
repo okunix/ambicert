@@ -1,4 +1,4 @@
 bin/
 build/
 .env
-csr-config.yaml
+.vscode/
