@@ -17,9 +17,9 @@ var (
 )
 
 type BasicConstraints struct {
-	IsCA       bool `yaml:"isCA,omitempty" asn1:"optional"`
-	MaxPathLen int  `yaml:"maxPathLen,omitempty" asn1:"optional,default:-1"`
-	Critical   bool `yaml:"critical,omitempty" asn1:"-"`
+	IsCA       bool `yaml:"isCA,omitempty"`
+	MaxPathLen int  `yaml:"maxPathLen,omitempty"`
+	Critical   bool `yaml:"critical,omitempty"`
 }
 
 type SubjectConfig struct {
@@ -86,7 +86,10 @@ func (c CSRConfig) GetKeyUsage() (*pkix.Extension, error) {
 }
 
 func (c CSRConfig) GetBasicConstraints() (*pkix.Extension, error) {
-	der, err := asn1.Marshal(c.BasicConstraints)
+	der, err := asn1.Marshal(struct {
+		IsCA       bool `asn1:"optional"`
+		MaxPathLen int  `asn1:"optional,default:-1"`
+	}{IsCA: c.BasicConstraints.IsCA, MaxPathLen: c.BasicConstraints.MaxPathLen})
 	return &pkix.Extension{
 		Id:       oidBasicConstraints,
 		Critical: c.BasicConstraints.Critical,
