@@ -1,4 +1,4 @@
-package csr
+package keyutil
 
 import (
 	"crypto"
@@ -10,21 +10,20 @@ import (
 )
 
 type KeyConfig struct {
-	KeyOutputFile       string `yaml:"keyOutputFile"`
-	PrivateKeyAlgorithm string `yaml:"privateKeyAlgorithm"`
+	Algorithm string `yaml:"algorithm"`
 	// rsa only options
 	RSABitDepth int `yaml:"rsaBitDepth"`
 }
 
 func newDefaultKeyConfig() KeyConfig {
 	return KeyConfig{
-		PrivateKeyAlgorithm: "rsa",
-		RSABitDepth:         4096,
+		Algorithm:   "rsa",
+		RSABitDepth: 4096,
 	}
 }
 
 func (k KeyConfig) New() (publickey crypto.PublicKey, privatekey crypto.PrivateKey, err error) {
-	switch strings.ToLower(strings.TrimSpace(k.PrivateKeyAlgorithm)) {
+	switch strings.ToLower(strings.TrimSpace(k.Algorithm)) {
 	case "rsa":
 		var rsakey *rsa.PrivateKey
 		rsakey, err = rsa.GenerateKey(rand.Reader, k.RSABitDepth)

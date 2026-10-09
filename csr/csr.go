@@ -5,26 +5,21 @@ import (
 	"crypto/rand"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/asn1"
 	"errors"
 	"net"
 	"strings"
 )
 
-type Config struct {
-	IO  IOConfig  `yaml:"io"`
-	CSR CSRConfig `yaml:"csr"`
-}
+var (
+	ErrInvalidIP       = errors.New("failed to parse an ip address")
+	ErrUnknownKeyUsage = errors.New("unknown key usage provided")
+)
 
-type IOConfig struct {
-	// where to put csr after generation. use stdout if not specified
-	CSROutputFile string `yaml:"csrOutputFile"`
-
-	// maybe i should move this options to CSRConfig instead
-	// user can provide his own key
-	PrivateKeyFile string `yaml:"privateKeyFile"`
-
-	// auto-generated key configuration. options are ignored if privateKeyFile is provided
-	Key KeyConfig `yaml:"key"`
+type BasicConstraints struct {
+	IsCA       bool `yaml:"isCA,omitempty" asn1:"optional"`
+	MaxPathLen int  `yaml:"maxPathLen,omitempty" asn1:"optional,default:-1"`
+	Critical   bool `yaml:"critical,omitempty" asn1:"-"`
 }
 
 type SubjectConfig struct {
@@ -46,68 +41,169 @@ type CSRConfig struct {
 	EmailAddresses     []string      `yaml:"emailAddresses"`
 	IPAddresses        []string      `yaml:"ipAddresses"`
 
-	KeyUsage         []KeyUsage `yaml:"keyUsage"`
-	ExtendedKeyUsage []KeyUsage `yaml:"extendedKeyUsage"`
-	BasicConstraints []string   `yaml:"basicConstraints"`
+	KeyUsage         KeyUsage         `yaml:"keyUsage"`
+	ExtendedKeyUsage KeyUsage         `yaml:"extendedKeyUsage"`
+	BasicConstraints BasicConstraints `yaml:"basicConstraints"`
 }
 
-func (csrConfig CSRConfig) GetIPs() ([]net.IP, error) {
+func (c CSRConfig) GetKeyUsage() (*pkix.Extension, error) {
+	if len(c.KeyUsage.Values) == 0 {
+		return nil, nil
+	}
+	var ku x509.KeyUsage
+	for _, v := range c.KeyUsage.Values {
+		switch v {
+		case "digitalSignature":
+			ku |= x509.KeyUsageDigitalSignature
+		case "keyEnchiperment":
+			ku |= x509.KeyUsageKeyEncipherment
+		case "dataEncipherment":
+			ku |= x509.KeyUsageDataEncipherment
+		case "keyAgreement":
+			ku |= x509.KeyUsageKeyAgreement
+		case "keyCertSign":
+			ku |= x509.KeyUsageCertSign
+		case "CRLSign":
+			ku |= x509.KeyUsageCRLSign
+		case "encipherOnly":
+			ku |= x509.KeyUsageEncipherOnly
+		case "decipherOnly":
+			ku |= x509.KeyUsageDecipherOnly
+		default:
+			return nil, ErrUnknownKeyUsage
+		}
+	}
+	der, err := keyUsageDER(ku)
+	if err != nil {
+		return nil, err
+	}
+	ext := &pkix.Extension{
+		Id:       oidKeyUsage,
+		Critical: c.KeyUsage.Critical,
+		Value:    der,
+	}
+	return ext, nil
+}
+
+func (c CSRConfig) GetBasicConstraints() (*pkix.Extension, error) {
+	der, err := asn1.Marshal(c.BasicConstraints)
+	return &pkix.Extension{
+		Id:       oidBasicConstraints,
+		Critical: c.BasicConstraints.Critical,
+		Value:    der,
+	}, err
+}
+
+func (c CSRConfig) GetExtendedKeyUsage() (*pkix.Extension, error) {
+	if len(c.ExtendedKeyUsage.Values) == 0 {
+		return nil, nil
+	}
+	oid := make([]asn1.ObjectIdentifier, 0)
+	for _, v := range c.ExtendedKeyUsage.Values {
+		switch v {
+		case "serverAuth":
+			oid = append(oid, oidServerAuth)
+		case "clientAuth":
+			oid = append(oid, oidClientAuth)
+		case "codeSigning":
+			oid = append(oid, oidCodeSigning)
+		case "emailProtection":
+			oid = append(oid, oidEmailProtection)
+		case "timeStamping":
+			oid = append(oid, oidEmailProtection)
+		case "OCSPSigning":
+			oid = append(oid, oidOCSPSigning)
+		}
+	}
+	der, err := asn1.Marshal(oid)
+	if err != nil {
+		return nil, err
+	}
+	ext := &pkix.Extension{
+		Id:       oidExtKeyUsage,
+		Critical: c.ExtendedKeyUsage.Critical,
+		Value:    der,
+	}
+	return ext, nil
+}
+
+func (c CSRConfig) GetIPs() ([]net.IP, error) {
 	ips := make([]net.IP, 0)
-	for _, v := range csrConfig.IPAddresses {
+	for _, v := range c.IPAddresses {
 		ip := net.ParseIP(v)
 		if ip == nil {
-			return nil, errors.New("failed to parse an ip address")
+			return nil, ErrInvalidIP
 		}
 		ips = append(ips, ip)
 	}
 	return ips, nil
 }
 
-func (csrConfig CSRConfig) GetSignatureAlgorithm() (x509.SignatureAlgorithm, error) {
-	switch strings.TrimSpace(csrConfig.SignatureAlgorithm) {
+func (c CSRConfig) GetSignatureAlgorithm() (x509.SignatureAlgorithm, error) {
+	switch strings.TrimSpace(c.SignatureAlgorithm) {
 	case "SHA256WithRSA":
 		return x509.SHA256WithRSA, nil
 	}
 	return x509.UnknownSignatureAlgorithm, nil
 }
 
-func (csrConfig CSRConfig) GetSubject() pkix.Name {
+func (c CSRConfig) GetSubject() pkix.Name {
 	return pkix.Name{
-		CommonName:         csrConfig.Subject.CommonName,
-		Country:            csrConfig.Subject.Country,
-		Organization:       csrConfig.Subject.Organization,
-		OrganizationalUnit: csrConfig.Subject.OrganizationalUnit,
-		Locality:           csrConfig.Subject.Locality,
-		Province:           csrConfig.Subject.Province,
-		StreetAddress:      csrConfig.Subject.StreetAddress,
-		PostalCode:         csrConfig.Subject.PostalCode,
-		SerialNumber:       csrConfig.Subject.SerialNumber,
+		CommonName:         c.Subject.CommonName,
+		Country:            c.Subject.Country,
+		Organization:       c.Subject.Organization,
+		OrganizationalUnit: c.Subject.OrganizationalUnit,
+		Locality:           c.Subject.Locality,
+		Province:           c.Subject.Province,
+		StreetAddress:      c.Subject.StreetAddress,
+		PostalCode:         c.Subject.PostalCode,
+		SerialNumber:       c.Subject.SerialNumber,
 	}
 }
 
-func (cfg *Config) New() (key crypto.PrivateKey, csr []byte, err error) {
-	_, key, err = cfg.IO.Key.New()
+func (c *CSRConfig) New(key crypto.PrivateKey) (csr []byte, err error) {
+	ipAddresses, err := c.GetIPs()
 	if err != nil {
 		return
 	}
 
-	ipAddresses, err := cfg.CSR.GetIPs()
+	signatureAlgorithm, err := c.GetSignatureAlgorithm()
 	if err != nil {
 		return
 	}
 
-	signatureAlgorithm, err := cfg.CSR.GetSignatureAlgorithm()
+	exts := make([]pkix.Extension, 0)
+	basicConstraints, err := c.GetBasicConstraints()
 	if err != nil {
 		return
+	}
+	if basicConstraints != nil {
+		exts = append(exts, *basicConstraints)
+	}
+
+	keyUsage, err := c.GetKeyUsage()
+	if err != nil {
+		return
+	}
+	if keyUsage != nil {
+		exts = append(exts, *keyUsage)
+	}
+
+	extendedKeyUsage, err := c.GetExtendedKeyUsage()
+	if err != nil {
+		return
+	}
+	if extendedKeyUsage != nil {
+		exts = append(exts, *extendedKeyUsage)
 	}
 
 	template := x509.CertificateRequest{
-		Subject:            cfg.CSR.GetSubject(),
-		DNSNames:           cfg.CSR.DNSNames,
-		EmailAddresses:     cfg.CSR.EmailAddresses,
+		Subject:            c.GetSubject(),
+		DNSNames:           c.DNSNames,
+		EmailAddresses:     c.EmailAddresses,
 		SignatureAlgorithm: signatureAlgorithm,
 		IPAddresses:        ipAddresses,
-		// ExtraExtensions: cfg.ExtraExtensions,
+		ExtraExtensions:    exts,
 	}
 
 	csr, err = x509.CreateCertificateRequest(rand.Reader, &template, key)
