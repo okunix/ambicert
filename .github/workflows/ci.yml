@@ -24,14 +24,13 @@ jobs:
           go-version: ${{ matrix.go-version }}
           cache: true
 
-      - name: Get dependencies
-        run: go mod tidy
-
       - name: Build
-        run: go build -v -o bin/ambicert ./...
+        run: make
 
       - name: Test with file
-        run: ./bin/ambicert --csr-config csr_config.yml
+        run: |
+          openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:4096 -out priv.key -outform PEM
+          ./bin/ambicert --csr-config csr_config.yml > my_site.csr
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -40,4 +39,4 @@ jobs:
           path: |
             bin/ambicert
             my_site.csr
-            private.key
+            priv.key
