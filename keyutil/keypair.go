@@ -9,6 +9,10 @@ import (
 	"strings"
 )
 
+var (
+	ErrUnsupportedPrivateKeyAlgorithm = errors.New("unsupported private key algorithm provided")
+)
+
 type KeyConfig struct {
 	Algorithm string `yaml:"algorithm"`
 	// rsa only options
@@ -37,5 +41,5 @@ func (k KeyConfig) New() (publickey crypto.PublicKey, privatekey crypto.PrivateK
 		publickey, privatekey, err = ed25519.GenerateKey(rand.Reader)
 		return
 	}
-	return nil, nil, errors.New("unsupported private key algorithm provided")
+	return nil, nil, ErrUnsupportedPrivateKeyAlgorithm
 }
