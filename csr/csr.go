@@ -46,7 +46,7 @@ type CSRConfig struct {
 	BasicConstraints BasicConstraints `yaml:"basicConstraints"`
 }
 
-func (c CSRConfig) GetKeyUsage() (*pkix.Extension, error) {
+func (c CSRConfig) keyUsage() (*pkix.Extension, error) {
 	if len(c.KeyUsage.Values) == 0 {
 		return nil, nil
 	}
@@ -85,7 +85,7 @@ func (c CSRConfig) GetKeyUsage() (*pkix.Extension, error) {
 	return ext, nil
 }
 
-func (c CSRConfig) GetBasicConstraints() (*pkix.Extension, error) {
+func (c CSRConfig) basicConstraints() (*pkix.Extension, error) {
 	der, err := asn1.Marshal(struct {
 		IsCA       bool `asn1:"optional"`
 		MaxPathLen int  `asn1:"optional,default:-1"`
@@ -97,7 +97,7 @@ func (c CSRConfig) GetBasicConstraints() (*pkix.Extension, error) {
 	}, err
 }
 
-func (c CSRConfig) GetExtendedKeyUsage() (*pkix.Extension, error) {
+func (c CSRConfig) extendedKeyUsage() (*pkix.Extension, error) {
 	if len(c.ExtendedKeyUsage.Values) == 0 {
 		return nil, nil
 	}
@@ -130,7 +130,7 @@ func (c CSRConfig) GetExtendedKeyUsage() (*pkix.Extension, error) {
 	return ext, nil
 }
 
-func (c CSRConfig) GetIPs() ([]net.IP, error) {
+func (c CSRConfig) ips() ([]net.IP, error) {
 	ips := make([]net.IP, 0)
 	for _, v := range c.IPAddresses {
 		ip := net.ParseIP(v)
@@ -142,7 +142,7 @@ func (c CSRConfig) GetIPs() ([]net.IP, error) {
 	return ips, nil
 }
 
-func (c CSRConfig) GetSignatureAlgorithm() (x509.SignatureAlgorithm, error) {
+func (c CSRConfig) signatureAlgorithm() (x509.SignatureAlgorithm, error) {
 	switch strings.TrimSpace(c.SignatureAlgorithm) {
 	case "SHA256WithRSA":
 		return x509.SHA256WithRSA, nil
@@ -150,7 +150,7 @@ func (c CSRConfig) GetSignatureAlgorithm() (x509.SignatureAlgorithm, error) {
 	return x509.UnknownSignatureAlgorithm, nil
 }
 
-func (c CSRConfig) GetSubject() pkix.Name {
+func (c CSRConfig) subject() pkix.Name {
 	return pkix.Name{
 		CommonName:         c.Subject.CommonName,
 		Country:            c.Subject.Country,
@@ -165,18 +165,18 @@ func (c CSRConfig) GetSubject() pkix.Name {
 }
 
 func (c *CSRConfig) New(key crypto.PrivateKey) (csr []byte, err error) {
-	ipAddresses, err := c.GetIPs()
+	ipAddresses, err := c.ips()
 	if err != nil {
 		return
 	}
 
-	signatureAlgorithm, err := c.GetSignatureAlgorithm()
+	signatureAlgorithm, err := c.signatureAlgorithm()
 	if err != nil {
 		return
 	}
 
 	exts := make([]pkix.Extension, 0)
-	basicConstraints, err := c.GetBasicConstraints()
+	basicConstraints, err := c.basicConstraints()
 	if err != nil {
 		return
 	}
@@ -184,7 +184,7 @@ func (c *CSRConfig) New(key crypto.PrivateKey) (csr []byte, err error) {
 		exts = append(exts, *basicConstraints)
 	}
 
-	keyUsage, err := c.GetKeyUsage()
+	keyUsage, err := c.keyUsage()
 	if err != nil {
 		return
 	}
@@ -192,7 +192,7 @@ func (c *CSRConfig) New(key crypto.PrivateKey) (csr []byte, err error) {
 		exts = append(exts, *keyUsage)
 	}
 
-	extendedKeyUsage, err := c.GetExtendedKeyUsage()
+	extendedKeyUsage, err := c.extendedKeyUsage()
 	if err != nil {
 		return
 	}
@@ -201,7 +201,7 @@ func (c *CSRConfig) New(key crypto.PrivateKey) (csr []byte, err error) {
 	}
 
 	template := x509.CertificateRequest{
-		Subject:            c.GetSubject(),
+		Subject:            c.subject(),
 		DNSNames:           c.DNSNames,
 		EmailAddresses:     c.EmailAddresses,
 		SignatureAlgorithm: signatureAlgorithm,
