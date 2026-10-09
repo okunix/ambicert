@@ -1,28 +1,42 @@
-output: "my_site.csr"
+csrOutputFile: "cert.csr"
+privateKeyFile: "priv.key"
 
-signatureAlgorithm: 4
+template:
+  signatureAlgorithm: SHA256WithRSA
 
-subject:
-  commonName: "example.com"
-  country: ["RU"]
-  organization: ["My Mega Company"]
-  OrganizationalUnit: ["IT Department", "Security Team"]
-  locality: ["Moscow"]
-  province: ["Moscow Region"]
-  streetAddress: ["Red Square, 1"]
-  postalCode: ["101000"]
-  serialNumber: "001-2023"
+  subject:
+    commonName: "example.com"
+    country: ["RU"]
+    organization: ["My Mega Company"]
+    OrganizationalUnit: ["IT Department", "Security Team"]
+    locality: ["Moscow"]
+    province: ["Moscow Region"]
+    streetAddress: ["Red Square, 1"]
+    postalCode: ["101000"]
+    serialNumber: "001-2023"
 
-dnsNames:
-  - "example.com"
-  - "www.example.com"
-  - "api.example.com"
-  - "*.example.com"
+  dnsNames:
+    - "example.com"
+    - "www.example.com"
+    - "api.example.com"
+    - "*.example.com"
+  emailAddresses:
+    - "admin@example.com"
+    - "devops@example.com"
+  ipAddresses:
+    - "127.0.0.1"
+    - "192.168.1.50"
 
-emailAddresses:
-  - "admin@example.com"
-  - "devops@example.com"
-
-ipAddresses:
-  - "127.0.0.1"
-  - "192.168.1.50"
+  keyUsage:
+    critical: true
+    values:
+      - digitalSignature
+      - keyEnchiperment
+  extendedKeyUsage:
+    critical: true
+    values:
+      - clientAuth
+  basicConstraints:
+    isCA: false
+    critical: false
+    maxPathLen: 10
