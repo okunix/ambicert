@@ -1,48 +1,70 @@
 package main
 
 import (
+	"crypto"
 	"crypto/x509"
+	"encoding/pem"
 	"flag"
 	"fmt"
 	"os"
 
+	"github.com/okunix/ambicert/csr"
+	"github.com/okunix/ambicert/keyutil"
 	"go.yaml.in/yaml/v4"
 )
 
+type Config struct {
+	// where to put csr after generation. use stdout if not specified
+	OutputFile string `yaml:"csrOutputFile"`
+
+	// maybe i should move this options to CSRConfig instead
+	// user can provide his own key
+	PrivateKeyFile string `yaml:"privateKeyFile"`
+
+	// auto-generated key configuration. options are ignored if privateKeyFile is provided
+	Key keyutil.KeyConfig `yaml:"key"`
+
+	Template csr.CSRConfig `yaml:"template"`
+}
+
+var csrConfigFlag string
+
+func init() {
+	flag.StringVar(&csrConfigFlag, "csr-config", "", csrConfigFlag)
+}
+
 func main() {
-	var csrConfigFlag string
-
-	flag.StringVar(&csrConfigFlag, "csr-config", "", "CSR configuration file")
 	flag.Parse()
-
-	if csrConfigFlag == "" {
-		fmt.Println("Error: --csr-config is required")
-		os.Exit(1)
-	}
 
 	file, err := os.Open(csrConfigFlag)
 	if err != nil {
 		panic(err)
 	}
 
-	defer file.Close()
-
-	var csrConfig CSRConfig
+	var csrConfig Config
 	if err := yaml.NewDecoder(file).Decode(&csrConfig); err != nil {
 		panic(err)
 	}
 
-	key, csr, err := generateCrypto(csrConfig)
+	keyPEM, err := os.ReadFile(csrConfig.PrivateKeyFile)
 	if err != nil {
 		panic(err)
 	}
 
-	if err := savePEM(csrConfig.Output, "CERTIFICATE REQUEST", csr); err != nil {
-		panic(err)
-	}
-	if err := savePEM("private.key", "RSA PRIVATE KEY", x509.MarshalPKCS1PrivateKey(key)); err != nil {
+	block, _ := pem.Decode(keyPEM)
+	key, err := x509.ParsePKCS8PrivateKey(block.Bytes)
+	if err != nil {
 		panic(err)
 	}
 
-	fmt.Printf("Generated CSR for %s in %s\n", csrConfig.Subject.CommonName, csrConfig.Output)
+	csr, err := csrConfig.Template.New(key.(crypto.PrivateKey))
+	if err != nil {
+		fmt.Println("error creating csr")
+		panic(err)
+	}
+
+	err = pem.Encode(os.Stdout, &pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csr})
+	if err != nil {
+		panic(err)
+	}
 }
