@@ -1,5 +1,5 @@
 csrOutputFile: "cert.csr"
-privateKeyFile: "priv.key"
+keyOutputFile: "cert.key"
 
 template:
   signatureAlgorithm: SHA256WithRSA
