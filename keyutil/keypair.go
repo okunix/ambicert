@@ -19,7 +19,7 @@ type KeyConfig struct {
 	RSABitDepth int `yaml:"rsaBitDepth"`
 }
 
-func newDefaultKeyConfig() KeyConfig {
+func NewDefaultKeyConfig() KeyConfig {
 	return KeyConfig{
 		Algorithm:   "rsa",
 		RSABitDepth: 4096,
