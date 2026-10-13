@@ -11,7 +11,7 @@ import (
 // TODO: Add check if destination file is present and ask confirmation for overwrite. Also add --force flag to overwrite file without confirmation.
 
 var csrCmd = &cobra.Command{
-	Use:   "csr [-c PATH|--csrout PATH] [--key PATH|-k PATH|--keyout PATH] config.yaml",
+	Use:   "csr [-c PATH|--csrout PATH] [-k PATH|--keyout PATH] config.yaml",
 	Short: "generate CSR based on config",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
