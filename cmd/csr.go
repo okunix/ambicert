@@ -1,138 +1,84 @@
 package cmd
 
 import (
-	"crypto"
-	"crypto/x509"
-	"encoding/pem"
-	"fmt"
 	"os"
 
-	"github.com/okunix/ambicert/csr"
-	"github.com/okunix/ambicert/keyutil"
+	"github.com/okunix/ambicert/config"
+	"github.com/okunix/ambicert/pemutil"
 	"github.com/spf13/cobra"
-	"go.yaml.in/yaml/v4"
 )
 
-type Config struct {
-	// where to put csr after generation. use stdout if not specified
-	OutputFile string `yaml:"csrOutputFile"`
-	// where to put key after generation. use stdout if not specified
-	KeyFile string `yaml:"keyOutputFile"`
-
-	// maybe i should move this options to CSRConfig instead
-	// user can provide his own key
-	PrivateKeyFile string `yaml:"privateKeyFile"`
-
-	// auto-generated key configuration. options are ignored if privateKeyFile is provided
-	Key keyutil.KeyConfig `yaml:"key"`
-
-	Template csr.CSRConfig `yaml:"template"`
-}
-
-func newDefaultConfig() Config {
-	return Config{
-		Key: keyutil.NewDefaultKeyConfig(),
-	}
-}
+// TODO: Add check if destination file is present and ask confirmation for overwrite. Also add --force flag to overwrite file without confirmation.
 
 var csrCmd = &cobra.Command{
 	Use:   "csr [-c PATH|--csrout PATH] [--key PATH|-k PATH|--keyout PATH] config.yaml",
 	Short: "generate CSR based on config",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		var err error
-
+		// Retriving config file path
 		configFile := args[0]
 
-		csrout, _ := cmd.Flags().GetString("csrout")
-		keyout, _ := cmd.Flags().GetString("keyout")
-		privatekeyfile, _ := cmd.Flags().GetString("key")
-
-		file, err := os.Open(configFile)
+		// Parsing csr config file
+		csrConfig, err := config.ReadCsrConfigFile(configFile)
 		if err != nil {
-			return fmt.Errorf("failed to open file %s", configFile)
-		}
-
-		csrConfig := newDefaultConfig()
-		if err := yaml.NewDecoder(file).Decode(&csrConfig); err != nil {
 			return err
 		}
 
-		keyfile := csrConfig.PrivateKeyFile
-		if privatekeyfile != "" {
-			keyfile = privatekeyfile
+		// Parsing flags
+		csrout, _ := cmd.Flags().GetString("csrout")
+		if csrout == "" {
+			csrout = csrConfig.OutputFile
 		}
 
-		var key crypto.PrivateKey
+		// Setting key destination file
+		keyout, _ := cmd.Flags().GetString("keyout")
+		if keyout == "" {
+			keyout = csrConfig.KeyFile
+		}
 
-		if keyfile != "" {
-			keyPEM, err := os.ReadFile(keyfile)
-			if err != nil {
-				return err
-			}
-			block, _ := pem.Decode(keyPEM)
-			key, err = x509.ParsePKCS8PrivateKey(block.Bytes)
-			if err != nil {
-				return err
-			}
-		} else {
-			_, key, err = csrConfig.Key.New()
-			if err != nil {
-				return err
-			}
-			keydest := csrConfig.KeyFile
-			if keyout != "" {
-				keydest = keyout
-			}
-			keywriter := os.Stdout
-			if keydest != "-" && keydest != "" {
-				keywriter, err = os.OpenFile(keydest, os.O_WRONLY|os.O_CREATE, 0o600)
-				if err != nil {
-					return err
-				}
-			}
-			keyder, err := x509.MarshalPKCS8PrivateKey(key)
-			if err != nil {
-				return err
-			}
-			err = pem.Encode(keywriter, &pem.Block{Type: "PRIVATE KEY", Bytes: keyder})
+		// Creating new private key based on config
+		_, key, err := csrConfig.Key.New()
+		if err != nil {
+			return err
+		}
+
+		// Deciding where to put generated key
+		keydest := os.Stdout
+		if keyout != "-" && keyout != "" {
+			keydest, err = os.OpenFile(keyout, os.O_WRONLY|os.O_CREATE, 0o600)
 			if err != nil {
 				return err
 			}
 		}
 
+		// Writing key to the destination file encoded in pem format
+		if err := pemutil.EncodePrivateKey(keydest, key); err != nil {
+			return err
+		}
+
+		// Generating csr
 		csr, err := csrConfig.Template.New(key)
 		if err != nil {
-			fmt.Println("error creating csr")
 			return err
 		}
 
-		csrfile := csrConfig.OutputFile
-		if csrout != "" {
-			csrfile = csrout
-		}
-
+		// Deciding where to put generated csr
 		csrdest := os.Stdout
-		if csrfile != "" {
-			csrdest, err = os.OpenFile(csrfile, os.O_WRONLY|os.O_CREATE, 0o644)
+		if csrout != "" && csrout != "-" {
+			csrdest, err = os.OpenFile(csrout, os.O_WRONLY|os.O_CREATE, 0o644)
 			if err != nil {
 				return err
 			}
 		}
 
-		err = pem.Encode(csrdest, &pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csr})
-		if err != nil {
-			return err
-		}
-
-		return nil
+		// Writing csr
+		return pemutil.Encode(csrdest, "CERTIFICATE REQUEST", csr)
 	},
 }
 
 func init() {
 	csrCmd.Flags().StringP("csrout", "c", "", "CSR destination path")
 	csrCmd.Flags().StringP("keyout", "k", "", "Key destination path")
-	csrCmd.Flags().String("key", "", "Provide your own private key")
 
 	rootCmd.AddCommand(csrCmd)
 }
