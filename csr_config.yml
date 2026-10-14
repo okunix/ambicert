@@ -3,10 +3,11 @@ keyOutputFile: "cert.key"
 key:
   algorithm: rsa
   rsaBitDepth: 2048
+  # mldsaParameter: 87
   # ellipticCurve: P521
 
 template:
-  signatureAlgorithm: SHA256WithRSA # ECDSAWithSHA256
+  signatureAlgorithm: SHA256WithRSA
 
   subject:
     commonName: "example.com"
