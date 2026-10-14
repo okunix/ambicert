@@ -115,7 +115,7 @@ func (c CSRConfig) extendedKeyUsage() (*pkix.Extension, error) {
 		case "emailProtection":
 			oid = append(oid, oidEmailProtection)
 		case "timeStamping":
-			oid = append(oid, oidEmailProtection)
+			oid = append(oid, oidTimeStamping)
 		case "OCSPSigning":
 			oid = append(oid, oidOCSPSigning)
 		}
