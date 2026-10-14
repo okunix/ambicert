@@ -8,6 +8,7 @@ import (
 	"encoding/asn1"
 	"errors"
 	"net"
+	"net/url"
 	"strings"
 )
 
@@ -40,6 +41,7 @@ type CSRConfig struct {
 	DNSNames           []string      `yaml:"dnsNames"`
 	EmailAddresses     []string      `yaml:"emailAddresses"`
 	IPAddresses        []string      `yaml:"ipAddresses"`
+	URIs               []string      `yaml:"uris"`
 
 	KeyUsage         KeyUsage         `yaml:"keyUsage"`
 	ExtendedKeyUsage KeyUsage         `yaml:"extendedKeyUsage"`
@@ -146,8 +148,50 @@ func (c CSRConfig) signatureAlgorithm() (x509.SignatureAlgorithm, error) {
 	switch strings.TrimSpace(c.SignatureAlgorithm) {
 	case "SHA256WithRSA":
 		return x509.SHA256WithRSA, nil
+	case "MD5WithRSA":
+		return x509.SHA256WithRSA, nil
+	case "SHA1WithRSA":
+		return x509.SHA1WithRSA, nil
+	case "SHA384WithRSA":
+		return x509.SHA384WithRSA, nil
+	case "SHA512WithRSA":
+		return x509.SHA512WithRSA, nil
+	case "ECDSAWithSHA1":
+		return x509.ECDSAWithSHA1, nil
+	case "ECDSAWithSHA256":
+		return x509.ECDSAWithSHA256, nil
+	case "ECDSAWithSHA384":
+		return x509.ECDSAWithSHA384, nil
+	case "ECDSAWithSHA512":
+		return x509.ECDSAWithSHA512, nil
+	case "SHA256WithRSAPSS":
+		return x509.SHA256WithRSAPSS, nil
+	case "SHA384WithRSAPSS":
+		return x509.SHA384WithRSAPSS, nil
+	case "SHA512WithRSAPSS":
+		return x509.SHA512WithRSAPSS, nil
+	case "PureEd25519":
+		return x509.PureEd25519, nil
+	case "MLDSA44":
+		return x509.MLDSA44, nil
+	case "MLDSA65":
+		return x509.MLDSA65, nil
+	case "MLDSA87":
+		return x509.MLDSA87, nil
 	}
 	return x509.UnknownSignatureAlgorithm, nil
+}
+
+func (c CSRConfig) uris() ([]*url.URL, error) {
+	res := make([]*url.URL, len(c.URIs))
+	for k, v := range c.URIs {
+		uri, err := url.Parse(v)
+		if err != nil {
+			return nil, err
+		}
+		res[k] = uri
+	}
+	return res, nil
 }
 
 func (c CSRConfig) subject() pkix.Name {
@@ -200,12 +244,18 @@ func (c *CSRConfig) New(key crypto.PrivateKey) (csr []byte, err error) {
 		exts = append(exts, *extendedKeyUsage)
 	}
 
+	uris, err := c.uris()
+	if err != nil {
+		return
+	}
+
 	template := x509.CertificateRequest{
 		Subject:            c.subject(),
 		DNSNames:           c.DNSNames,
 		EmailAddresses:     c.EmailAddresses,
 		SignatureAlgorithm: signatureAlgorithm,
 		IPAddresses:        ipAddresses,
+		URIs:               uris,
 		ExtraExtensions:    exts,
 	}
 
