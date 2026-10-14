@@ -1,8 +1,12 @@
 csrOutputFile: "cert.csr"
 keyOutputFile: "cert.key"
+key:
+  algorithm: rsa
+  rsaBitDepth: 2048
+  # ellipticCurve: P521
 
 template:
-  signatureAlgorithm: SHA256WithRSA
+  signatureAlgorithm: SHA256WithRSA # ECDSAWithSHA256
 
   subject:
     commonName: "example.com"
@@ -26,6 +30,8 @@ template:
   ipAddresses:
     - "127.0.0.1"
     - "192.168.1.50"
+  uris:
+    - "https://google.com"
 
   keyUsage:
     critical: true
