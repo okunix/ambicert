@@ -1,41 +1,76 @@
-name: BUILD
+name: CI
 
 on:
   push:
-    branches: [main, feature-parser]
+    branches:
+      - main
+      - "feature/**"
   pull_request:
-    branches: [main]
+    branches:
+      - main
 
 jobs:
-  build:
-    name: Build on GO ${{ matrix.go-version }}
+  lint:
+    name: Lint
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        go-version: ["1.27.1"]
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
         with:
-          go-version: ${{ matrix.go-version }}
+          go-version: "1.27"
           cache: true
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v9.3.0
+        with:
+          version: latest
 
-      - name: Build
-        run: make
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.27"
+          cache: true
+      - name: govulncheck
+        uses: golang/govulncheck-action@v1.1.0
+        with:
+          go-version-input: "1.27"
+          check-library: true
 
-      - name: Test with file
-        run: |
-          ./bin/ambicert csr -c my_site.csr -k priv.key csr_config.yml
-
-      - name: Upload artifacts
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.27"
+          cache: true
+      - name: Run Tests
+        run: make test
+      - name: Convert coverage to HTML
+        run: go tool cover -html=coverage.out -o coverage.html
+      - name: Upload Coverage Report
         uses: actions/upload-artifact@v4
         with:
-          name: ambicert-binaries
-          path: |
-            bin/ambicert
-            my_site.csr
-            priv.key
+          name: coverage-report
+          path: coverage.html
+
+  build:
+    name: Build Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.27"
+          cache: true
+      - name: Build All Platforms
+        run: make build-all
+      - name: Upload Binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: binaries
+          path: bin/
