@@ -1,92 +1,48 @@
 package keyutil
 
 import (
+	"bytes"
 	"crypto"
-	"crypto/ed25519"
 	"crypto/elliptic"
 	"crypto/mldsa"
-	"crypto/rand"
-	"crypto/rsa"
 	"errors"
 	"strings"
+
+	"github.com/okunix/ambicert/config"
+	"github.com/okunix/ambicert/pemutil"
 )
 
 var (
 	ErrUnsupportedPrivateKeyAlgorithm = errors.New("unsupported private key algorithm provided")
-	ErrUnknownEllipticCurve           = errors.New("unknown elliptic curve")
-	ErrUnsupportedMLDSAParameter      = errors.New("unsupported mldsa parameter")
 )
 
-type KeyConfig struct {
-	Algorithm string `yaml:"algorithm"`
-	// rsa options
-	RSABitDepth int `yaml:"rsaBitDepth"`
-	// ecdsa options
-	EllipticCurve string `yaml:"ellipticCurve"`
-	// mldsa options
-	MLDSAParameter int `yaml:"mldsaParameter"`
+type KeyGenerator struct {
+	config config.KeyConfig
 }
 
-func NewDefaultKeyConfig() KeyConfig {
-	return KeyConfig{
-		Algorithm:      "rsa",
-		RSABitDepth:    4096,
-		EllipticCurve:  "P256",
-		MLDSAParameter: 44,
-	}
+func NewKeyGenerator(config config.KeyConfig) *KeyGenerator {
+	return &KeyGenerator{config: config}
 }
 
-func (k KeyConfig) ellipticCurve() (elliptic.Curve, error) {
-	switch strings.ToLower(k.EllipticCurve) {
-	case "p224":
-		return elliptic.P224(), nil
-	case "p256":
-		return elliptic.P256(), nil
-	case "p384":
-		return elliptic.P384(), nil
-	case "p521":
-		return elliptic.P521(), nil
-	}
-	return &elliptic.CurveParams{}, ErrUnknownEllipticCurve
-}
-
-func (k KeyConfig) mldsaParameter() (mldsa.Parameters, error) {
-	switch k.MLDSAParameter {
-	case 44:
-		return mldsa.MLDSA44(), nil
-	case 65:
-		return mldsa.MLDSA65(), nil
-	case 87:
-		return mldsa.MLDSA87(), nil
-	}
-	return mldsa.Parameters{}, ErrUnsupportedMLDSAParameter
-}
-
-func (k KeyConfig) New() (publickey crypto.PublicKey, privatekey crypto.PrivateKey, err error) {
-	switch strings.ToLower(strings.TrimSpace(k.Algorithm)) {
+func (k KeyGenerator) NewKeyPair() (publickey crypto.PublicKey, privatekey crypto.PrivateKey, err error) {
+	switch strings.ToLower(strings.TrimSpace(k.config.Algorithm)) {
 	case "rsa":
-		var rsakey *rsa.PrivateKey
-		rsakey, err = rsa.GenerateKey(rand.Reader, k.RSABitDepth)
-		if err != nil {
-			return nil, nil, err
-		}
-		publickey = rsakey.Public()
-		privatekey = rsakey
+		publickey, privatekey, err = NewRSA(k.config.RSABitDepth)
 		return
 	case "ed25519":
-		publickey, privatekey, err = ed25519.GenerateKey(rand.Reader)
+		publickey, privatekey, err = NewED25519()
 		return
 	case "ecdsa":
 		var curve elliptic.Curve
-		curve, err = k.ellipticCurve()
+		curve, err = k.config.GetEllipticCurve()
 		if err != nil {
 			return
 		}
-		publickey, privatekey, err = NewEDCSA(curve, rand.Reader)
+		publickey, privatekey, err = NewEDCSA(curve)
 		return
 	case "mldsa":
 		var param mldsa.Parameters
-		param, err = k.mldsaParameter()
+		param, err = k.config.GetMldsaParameter()
 		if err != nil {
 			return
 		}
@@ -94,4 +50,29 @@ func (k KeyConfig) New() (publickey crypto.PublicKey, privatekey crypto.PrivateK
 		return
 	}
 	return nil, nil, ErrUnsupportedPrivateKeyAlgorithm
+}
+
+func (k *KeyGenerator) Populate() (crypto.PrivateKey, error) {
+	outputs, err := k.config.GetOutputs()
+	if err != nil {
+		return nil, err
+	}
+
+	_, privatekey, err := k.NewKeyPair()
+	if err != nil {
+		return nil, err
+	}
+	var buf bytes.Buffer
+	err = pemutil.EncodePrivateKey(&buf, privatekey)
+	if err != nil {
+		return nil, err
+	}
+
+	pem := buf.String()
+	for _, v := range outputs {
+		if err := v.Write(pem); err != nil {
+			return nil, err
+		}
+	}
+	return privatekey, nil
 }

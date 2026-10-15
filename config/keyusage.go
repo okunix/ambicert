@@ -1,4 +1,4 @@
-package csr
+package config
 
 import (
 	"crypto/x509"

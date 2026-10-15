@@ -1,226 +1,37 @@
 package csr
 
 import (
+	"bytes"
 	"crypto"
 	"crypto/rand"
 	"crypto/x509"
 	"crypto/x509/pkix"
-	"encoding/asn1"
-	"errors"
-	"net"
-	"net/url"
-	"strings"
+
+	"github.com/okunix/ambicert/config"
+	"github.com/okunix/ambicert/pemutil"
 )
 
-var (
-	ErrInvalidIP       = errors.New("failed to parse an ip address")
-	ErrUnknownKeyUsage = errors.New("unknown key usage provided")
-)
-
-type BasicConstraints struct {
-	IsCA       bool `yaml:"isCA,omitempty"`
-	MaxPathLen int  `yaml:"maxPathLen,omitempty"`
-	Critical   bool `yaml:"critical,omitempty"`
+type CsrGenerator struct {
+	config config.CsrConfig
 }
 
-type SubjectConfig struct {
-	Country            []string `yaml:"country,omitempty"`
-	Organization       []string `yaml:"organization,omitempty"`
-	OrganizationalUnit []string `yaml:"organizatinoalUnit,omitempty"`
-	Locality           []string `yaml:"locality,omitempty"`
-	Province           []string `yaml:"province,omitempty"`
-	StreetAddress      []string `yaml:"streetAddress,omitempty"`
-	PostalCode         []string `yaml:"postalCode,omitempty"`
-	SerialNumber       string   `yaml:"serialNumber,omitempty"`
-	CommonName         string   `yaml:"commonName,omitempty"`
+func NewCsrGenerator(config config.CsrConfig) *CsrGenerator {
+	return &CsrGenerator{config: config}
 }
 
-type CSRConfig struct {
-	Subject            SubjectConfig `yaml:"subject"`
-	SignatureAlgorithm string        `yaml:"signatureAlgorithm"`
-	DNSNames           []string      `yaml:"dnsNames"`
-	EmailAddresses     []string      `yaml:"emailAddresses"`
-	IPAddresses        []string      `yaml:"ipAddresses"`
-	URIs               []string      `yaml:"uris"`
-
-	KeyUsage         KeyUsage         `yaml:"keyUsage"`
-	ExtendedKeyUsage KeyUsage         `yaml:"extendedKeyUsage"`
-	BasicConstraints BasicConstraints `yaml:"basicConstraints"`
-}
-
-func (c CSRConfig) keyUsage() (*pkix.Extension, error) {
-	if len(c.KeyUsage.Values) == 0 {
-		return nil, nil
-	}
-	var ku x509.KeyUsage
-	for _, v := range c.KeyUsage.Values {
-		switch v {
-		case "digitalSignature":
-			ku |= x509.KeyUsageDigitalSignature
-		case "keyEnchiperment":
-			ku |= x509.KeyUsageKeyEncipherment
-		case "dataEncipherment":
-			ku |= x509.KeyUsageDataEncipherment
-		case "keyAgreement":
-			ku |= x509.KeyUsageKeyAgreement
-		case "keyCertSign":
-			ku |= x509.KeyUsageCertSign
-		case "CRLSign":
-			ku |= x509.KeyUsageCRLSign
-		case "encipherOnly":
-			ku |= x509.KeyUsageEncipherOnly
-		case "decipherOnly":
-			ku |= x509.KeyUsageDecipherOnly
-		default:
-			return nil, ErrUnknownKeyUsage
-		}
-	}
-	der, err := keyUsageDER(ku)
-	if err != nil {
-		return nil, err
-	}
-	ext := &pkix.Extension{
-		Id:       oidKeyUsage,
-		Critical: c.KeyUsage.Critical,
-		Value:    der,
-	}
-	return ext, nil
-}
-
-func (c CSRConfig) basicConstraints() (*pkix.Extension, error) {
-	der, err := asn1.Marshal(struct {
-		IsCA       bool `asn1:"optional"`
-		MaxPathLen int  `asn1:"optional,default:-1"`
-	}{IsCA: c.BasicConstraints.IsCA, MaxPathLen: c.BasicConstraints.MaxPathLen})
-	return &pkix.Extension{
-		Id:       oidBasicConstraints,
-		Critical: c.BasicConstraints.Critical,
-		Value:    der,
-	}, err
-}
-
-func (c CSRConfig) extendedKeyUsage() (*pkix.Extension, error) {
-	if len(c.ExtendedKeyUsage.Values) == 0 {
-		return nil, nil
-	}
-	oid := make([]asn1.ObjectIdentifier, 0)
-	for _, v := range c.ExtendedKeyUsage.Values {
-		switch v {
-		case "serverAuth":
-			oid = append(oid, oidServerAuth)
-		case "clientAuth":
-			oid = append(oid, oidClientAuth)
-		case "codeSigning":
-			oid = append(oid, oidCodeSigning)
-		case "emailProtection":
-			oid = append(oid, oidEmailProtection)
-		case "timeStamping":
-			oid = append(oid, oidTimeStamping)
-		case "OCSPSigning":
-			oid = append(oid, oidOCSPSigning)
-		}
-	}
-	der, err := asn1.Marshal(oid)
-	if err != nil {
-		return nil, err
-	}
-	ext := &pkix.Extension{
-		Id:       oidExtKeyUsage,
-		Critical: c.ExtendedKeyUsage.Critical,
-		Value:    der,
-	}
-	return ext, nil
-}
-
-func (c CSRConfig) ips() ([]net.IP, error) {
-	ips := make([]net.IP, 0)
-	for _, v := range c.IPAddresses {
-		ip := net.ParseIP(v)
-		if ip == nil {
-			return nil, ErrInvalidIP
-		}
-		ips = append(ips, ip)
-	}
-	return ips, nil
-}
-
-func (c CSRConfig) signatureAlgorithm() (x509.SignatureAlgorithm, error) {
-	switch strings.TrimSpace(c.SignatureAlgorithm) {
-	case "SHA256WithRSA":
-		return x509.SHA256WithRSA, nil
-	case "MD5WithRSA":
-		return x509.SHA256WithRSA, nil
-	case "SHA1WithRSA":
-		return x509.SHA1WithRSA, nil
-	case "SHA384WithRSA":
-		return x509.SHA384WithRSA, nil
-	case "SHA512WithRSA":
-		return x509.SHA512WithRSA, nil
-	case "ECDSAWithSHA1":
-		return x509.ECDSAWithSHA1, nil
-	case "ECDSAWithSHA256":
-		return x509.ECDSAWithSHA256, nil
-	case "ECDSAWithSHA384":
-		return x509.ECDSAWithSHA384, nil
-	case "ECDSAWithSHA512":
-		return x509.ECDSAWithSHA512, nil
-	case "SHA256WithRSAPSS":
-		return x509.SHA256WithRSAPSS, nil
-	case "SHA384WithRSAPSS":
-		return x509.SHA384WithRSAPSS, nil
-	case "SHA512WithRSAPSS":
-		return x509.SHA512WithRSAPSS, nil
-	case "PureEd25519":
-		return x509.PureEd25519, nil
-	case "MLDSA44":
-		return x509.MLDSA44, nil
-	case "MLDSA65":
-		return x509.MLDSA65, nil
-	case "MLDSA87":
-		return x509.MLDSA87, nil
-	}
-	return x509.UnknownSignatureAlgorithm, nil
-}
-
-func (c CSRConfig) uris() ([]*url.URL, error) {
-	res := make([]*url.URL, len(c.URIs))
-	for k, v := range c.URIs {
-		uri, err := url.Parse(v)
-		if err != nil {
-			return nil, err
-		}
-		res[k] = uri
-	}
-	return res, nil
-}
-
-func (c CSRConfig) subject() pkix.Name {
-	return pkix.Name{
-		CommonName:         c.Subject.CommonName,
-		Country:            c.Subject.Country,
-		Organization:       c.Subject.Organization,
-		OrganizationalUnit: c.Subject.OrganizationalUnit,
-		Locality:           c.Subject.Locality,
-		Province:           c.Subject.Province,
-		StreetAddress:      c.Subject.StreetAddress,
-		PostalCode:         c.Subject.PostalCode,
-		SerialNumber:       c.Subject.SerialNumber,
-	}
-}
-
-func (c *CSRConfig) New(key crypto.PrivateKey) (csr []byte, err error) {
-	ipAddresses, err := c.ips()
+func (c *CsrGenerator) New(key crypto.PrivateKey) (csr []byte, err error) {
+	ipAddresses, err := c.config.GetIPs()
 	if err != nil {
 		return
 	}
 
-	signatureAlgorithm, err := c.signatureAlgorithm()
+	signatureAlgorithm, err := c.config.GetSignatureAlgorithm()
 	if err != nil {
 		return
 	}
 
 	exts := make([]pkix.Extension, 0)
-	basicConstraints, err := c.basicConstraints()
+	basicConstraints, err := c.config.GetBasicConstraints()
 	if err != nil {
 		return
 	}
@@ -228,7 +39,7 @@ func (c *CSRConfig) New(key crypto.PrivateKey) (csr []byte, err error) {
 		exts = append(exts, *basicConstraints)
 	}
 
-	keyUsage, err := c.keyUsage()
+	keyUsage, err := c.config.GetKeyUsage()
 	if err != nil {
 		return
 	}
@@ -236,7 +47,7 @@ func (c *CSRConfig) New(key crypto.PrivateKey) (csr []byte, err error) {
 		exts = append(exts, *keyUsage)
 	}
 
-	extendedKeyUsage, err := c.extendedKeyUsage()
+	extendedKeyUsage, err := c.config.GetExtendedKeyUsage()
 	if err != nil {
 		return
 	}
@@ -244,15 +55,15 @@ func (c *CSRConfig) New(key crypto.PrivateKey) (csr []byte, err error) {
 		exts = append(exts, *extendedKeyUsage)
 	}
 
-	uris, err := c.uris()
+	uris, err := c.config.GetURIs()
 	if err != nil {
 		return
 	}
 
 	template := x509.CertificateRequest{
-		Subject:            c.subject(),
-		DNSNames:           c.DNSNames,
-		EmailAddresses:     c.EmailAddresses,
+		Subject:            c.config.GetSubject(),
+		DNSNames:           c.config.DNSNames,
+		EmailAddresses:     c.config.EmailAddresses,
 		SignatureAlgorithm: signatureAlgorithm,
 		IPAddresses:        ipAddresses,
 		URIs:               uris,
@@ -261,4 +72,29 @@ func (c *CSRConfig) New(key crypto.PrivateKey) (csr []byte, err error) {
 
 	csr, err = x509.CreateCertificateRequest(rand.Reader, &template, key)
 	return
+}
+
+func (c *CsrGenerator) Populate(key crypto.PrivateKey) error {
+	outputs, err := c.config.GetOutputs()
+	if err != nil {
+		return err
+	}
+
+	der, err := c.New(key)
+	if err != nil {
+		return err
+	}
+	var buf bytes.Buffer
+	err = pemutil.Encode(&buf, "CERTIFICATE REQUEST", der)
+	if err != nil {
+		return err
+	}
+
+	pem := buf.String()
+	for _, v := range outputs {
+		if err := v.Write(pem); err != nil {
+			return err
+		}
+	}
+	return nil
 }
