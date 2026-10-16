@@ -5,11 +5,15 @@ key:
     - type: stdout
     - type: file
       file:
-        path: 1234.key
+        path: cert.key
 
 csr:
   outputs:
     - type: stdout
+    - type: file
+      file:
+        path: cert.csr
+
   signatureAlgorithm: SHA256WithRSA
 
   subject:
