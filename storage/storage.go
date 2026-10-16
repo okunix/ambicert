@@ -1,11 +1,11 @@
 package storage
 
 type Readable interface {
-	Read() (string, error)
+	Read() ([]byte, error)
 }
 
 type Writable interface {
-	Write(value string) error
+	Write(value []byte) error
 }
 
 // per key storage interface

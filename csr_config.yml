@@ -13,6 +13,7 @@ csr:
     - type: file
       file:
         path: cert.csr
+        perm: 0o644
 
   signatureAlgorithm: SHA256WithRSA
 

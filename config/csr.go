@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/okunix/ambicert/csr"
 	"github.com/okunix/ambicert/storage"
 )
 
@@ -221,4 +222,43 @@ func (c CsrConfig) GetOutputs() ([]storage.Writable, error) {
 		outputs[k] = output
 	}
 	return outputs, nil
+}
+
+func (c CsrConfig) NewCsrGeneratorParams() (csr.CsrGeneratorParams, error) {
+	subject := c.GetSubject()
+	signatureAlgorithm, err := c.GetSignatureAlgorithm()
+	if err != nil {
+		return csr.CsrGeneratorParams{}, err
+	}
+	basicConstraints, err := c.GetBasicConstraints()
+	if err != nil {
+		return csr.CsrGeneratorParams{}, err
+	}
+	keyUsage, err := c.GetKeyUsage()
+	if err != nil {
+		return csr.CsrGeneratorParams{}, err
+	}
+	extendedKeyUsage, err := c.GetExtendedKeyUsage()
+	if err != nil {
+		return csr.CsrGeneratorParams{}, err
+	}
+	ips, err := c.GetIPs()
+	if err != nil {
+		return csr.CsrGeneratorParams{}, err
+	}
+	uris, err := c.GetURIs()
+	if err != nil {
+		return csr.CsrGeneratorParams{}, err
+	}
+	return csr.CsrGeneratorParams{
+		Subject:            subject,
+		SignatureAlgorithm: signatureAlgorithm,
+		BasicConstraints:   basicConstraints,
+		KeyUsage:           keyUsage,
+		ExtendedKeyUsage:   extendedKeyUsage,
+		IPAddresses:        ips,
+		URIs:               uris,
+		DNSNames:           c.DNSNames,
+		EmailAddresses:     c.EmailAddresses,
+	}, nil
 }

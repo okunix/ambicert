@@ -11,7 +11,7 @@ func NewStdout() Writable {
 	return &stdoutStorage{}
 }
 
-func (f *stdoutStorage) Write(value string) error {
-	fmt.Print(value)
+func (f *stdoutStorage) Write(value []byte) error {
+	fmt.Print(string(value))
 	return nil
 }

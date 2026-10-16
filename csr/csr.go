@@ -1,100 +1,60 @@
 package csr
 
 import (
-	"bytes"
 	"crypto"
 	"crypto/rand"
 	"crypto/x509"
 	"crypto/x509/pkix"
-
-	"github.com/okunix/ambicert/config"
-	"github.com/okunix/ambicert/pemutil"
+	"net"
+	"net/url"
 )
 
-type CsrGenerator struct {
-	config config.CsrConfig
+type CsrGeneratorParams struct {
+	Subject            pkix.Name
+	SignatureAlgorithm x509.SignatureAlgorithm
+	BasicConstraints   *pkix.Extension
+	KeyUsage           *pkix.Extension
+	ExtendedKeyUsage   *pkix.Extension
+	DNSNames           []string
+	EmailAddresses     []string
+	IPAddresses        []net.IP
+	URIs               []*url.URL
 }
 
-func NewCsrGenerator(config config.CsrConfig) *CsrGenerator {
-	return &CsrGenerator{config: config}
+type CsrGenerator struct {
+	params CsrGeneratorParams
+}
+
+func NewCsrGenerator(params CsrGeneratorParams) *CsrGenerator {
+	return &CsrGenerator{params: params}
 }
 
 func (c *CsrGenerator) New(key crypto.PrivateKey) (csr []byte, err error) {
-	ipAddresses, err := c.config.GetIPs()
-	if err != nil {
-		return
-	}
-
-	signatureAlgorithm, err := c.config.GetSignatureAlgorithm()
-	if err != nil {
-		return
-	}
+	basicConstraints := c.params.BasicConstraints
+	keyUsage := c.params.KeyUsage
+	extendedKeyUsage := c.params.ExtendedKeyUsage
 
 	exts := make([]pkix.Extension, 0)
-	basicConstraints, err := c.config.GetBasicConstraints()
-	if err != nil {
-		return
-	}
 	if basicConstraints != nil {
 		exts = append(exts, *basicConstraints)
 	}
-
-	keyUsage, err := c.config.GetKeyUsage()
-	if err != nil {
-		return
-	}
 	if keyUsage != nil {
 		exts = append(exts, *keyUsage)
-	}
-
-	extendedKeyUsage, err := c.config.GetExtendedKeyUsage()
-	if err != nil {
-		return
 	}
 	if extendedKeyUsage != nil {
 		exts = append(exts, *extendedKeyUsage)
 	}
 
-	uris, err := c.config.GetURIs()
-	if err != nil {
-		return
-	}
-
 	template := x509.CertificateRequest{
-		Subject:            c.config.GetSubject(),
-		DNSNames:           c.config.DNSNames,
-		EmailAddresses:     c.config.EmailAddresses,
-		SignatureAlgorithm: signatureAlgorithm,
-		IPAddresses:        ipAddresses,
-		URIs:               uris,
+		Subject:            c.params.Subject,
+		DNSNames:           c.params.DNSNames,
+		EmailAddresses:     c.params.EmailAddresses,
+		SignatureAlgorithm: c.params.SignatureAlgorithm,
+		IPAddresses:        c.params.IPAddresses,
+		URIs:               c.params.URIs,
 		ExtraExtensions:    exts,
 	}
 
 	csr, err = x509.CreateCertificateRequest(rand.Reader, &template, key)
 	return
-}
-
-func (c *CsrGenerator) Populate(key crypto.PrivateKey) error {
-	outputs, err := c.config.GetOutputs()
-	if err != nil {
-		return err
-	}
-
-	der, err := c.New(key)
-	if err != nil {
-		return err
-	}
-	var buf bytes.Buffer
-	err = pemutil.Encode(&buf, "CERTIFICATE REQUEST", der)
-	if err != nil {
-		return err
-	}
-
-	pem := buf.String()
-	for _, v := range outputs {
-		if err := v.Write(pem); err != nil {
-			return err
-		}
-	}
-	return nil
 }

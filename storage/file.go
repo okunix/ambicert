@@ -6,11 +6,13 @@ import (
 
 type fileStorage struct {
 	path string
+	perm os.FileMode
 }
 
-func NewFileStorage(path string) Storage {
+func NewFileStorage(path string, perm os.FileMode) Storage {
 	return &fileStorage{
 		path: path,
+		perm: perm,
 	}
 }
 
@@ -19,12 +21,12 @@ func NewFileStorage(path string) Storage {
 // }
 
 // Read implements [Storage].
-func (f *fileStorage) Read() (string, error) {
+func (f *fileStorage) Read() ([]byte, error) {
 	data, err := os.ReadFile(f.path)
-	return string(data), err
+	return data, err
 }
 
 // Write implements [Storage].
-func (f *fileStorage) Write(value string) error {
-	return os.WriteFile(f.path, []byte(value), 0o600)
+func (f *fileStorage) Write(value []byte) error {
+	return os.WriteFile(f.path, value, f.perm)
 }

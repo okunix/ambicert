@@ -6,6 +6,7 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/okunix/ambicert/keyutil"
 	"github.com/okunix/ambicert/storage"
 )
 
@@ -71,4 +72,21 @@ func (k KeyConfig) GetOutputs() ([]storage.Writable, error) {
 		outputs[i] = output
 	}
 	return outputs, nil
+}
+
+func (k KeyConfig) NewKeyGeneratorParams() (keyutil.KeyGeneratorParams, error) {
+	ellipticCurve, err := k.GetEllipticCurve()
+	if err != nil {
+		return keyutil.KeyGeneratorParams{}, err
+	}
+	mldsaParameter, err := k.GetMldsaParameter()
+	if err != nil {
+		return keyutil.KeyGeneratorParams{}, err
+	}
+	return keyutil.KeyGeneratorParams{
+		Algorithm:      k.Algorithm,
+		EllipticCurve:  ellipticCurve,
+		MLDSAParameter: mldsaParameter,
+		RSABitDepth:    k.RSABitDepth,
+	}, nil
 }

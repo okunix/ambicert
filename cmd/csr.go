@@ -4,6 +4,7 @@ import (
 	"github.com/okunix/ambicert/config"
 	"github.com/okunix/ambicert/csr"
 	"github.com/okunix/ambicert/keyutil"
+	"github.com/okunix/ambicert/storage"
 	"github.com/spf13/cobra"
 )
 
@@ -23,16 +24,43 @@ var csrCmd = &cobra.Command{
 			return err
 		}
 
-		// Creating new key generator based on config
-		keygen := keyutil.NewKeyGenerator(certConfig.Key)
-		privatekey, err := keygen.Populate()
+		// Generating private key
+		keyGenParams, err := certConfig.Key.NewKeyGeneratorParams()
+		if err != nil {
+			return err
+		}
+		keygen := keyutil.NewKeyGenerator(keyGenParams)
+		_, privatekey, err := keygen.NewKeyPair()
 		if err != nil {
 			return err
 		}
 
 		// Generating csr
-		csrgen := csr.NewCsrGenerator(certConfig.CSR)
-		return csrgen.Populate(privatekey)
+		csrGenParams, err := certConfig.CSR.NewCsrGeneratorParams()
+		if err != nil {
+			return err
+		}
+		csrgen := csr.NewCsrGenerator(csrGenParams)
+		generatedCsr, err := csrgen.New(privatekey)
+		if err != nil {
+			return err
+		}
+
+		// Saving csr and key to storage
+		csrOutputs, err := certConfig.CSR.GetOutputs()
+		if err != nil {
+			return err
+		}
+		keyOutputs, err := certConfig.Key.GetOutputs()
+		if err != nil {
+			return err
+		}
+
+		err = storage.PublishPrivateKey(privatekey, keyOutputs...)
+		if err != nil {
+			return err
+		}
+		return storage.PublishCertificateRequest(generatedCsr, csrOutputs...)
 	},
 }
 

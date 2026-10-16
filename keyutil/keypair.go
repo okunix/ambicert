@@ -1,78 +1,46 @@
 package keyutil
 
 import (
-	"bytes"
 	"crypto"
 	"crypto/elliptic"
 	"crypto/mldsa"
 	"errors"
 	"strings"
-
-	"github.com/okunix/ambicert/config"
-	"github.com/okunix/ambicert/pemutil"
 )
 
 var (
 	ErrUnsupportedPrivateKeyAlgorithm = errors.New("unsupported private key algorithm provided")
 )
 
-type KeyGenerator struct {
-	config config.KeyConfig
+type KeyGeneratorParams struct {
+	Algorithm      string
+	RSABitDepth    int
+	EllipticCurve  elliptic.Curve
+	MLDSAParameter mldsa.Parameters
 }
 
-func NewKeyGenerator(config config.KeyConfig) *KeyGenerator {
-	return &KeyGenerator{config: config}
+type KeyGenerator struct {
+	params KeyGeneratorParams
+}
+
+func NewKeyGenerator(params KeyGeneratorParams) *KeyGenerator {
+	return &KeyGenerator{params: params}
 }
 
 func (k KeyGenerator) NewKeyPair() (publickey crypto.PublicKey, privatekey crypto.PrivateKey, err error) {
-	switch strings.ToLower(strings.TrimSpace(k.config.Algorithm)) {
+	switch strings.ToLower(strings.TrimSpace(k.params.Algorithm)) {
 	case "rsa":
-		publickey, privatekey, err = NewRSA(k.config.RSABitDepth)
+		publickey, privatekey, err = NewRSA(k.params.RSABitDepth)
 		return
 	case "ed25519":
 		publickey, privatekey, err = NewED25519()
 		return
 	case "ecdsa":
-		var curve elliptic.Curve
-		curve, err = k.config.GetEllipticCurve()
-		if err != nil {
-			return
-		}
-		publickey, privatekey, err = NewEDCSA(curve)
+		publickey, privatekey, err = NewEDCSA(k.params.EllipticCurve)
 		return
 	case "mldsa":
-		var param mldsa.Parameters
-		param, err = k.config.GetMldsaParameter()
-		if err != nil {
-			return
-		}
-		publickey, privatekey, err = NewMLDSA(param)
+		publickey, privatekey, err = NewMLDSA(k.params.MLDSAParameter)
 		return
 	}
 	return nil, nil, ErrUnsupportedPrivateKeyAlgorithm
-}
-
-func (k *KeyGenerator) Populate() (crypto.PrivateKey, error) {
-	outputs, err := k.config.GetOutputs()
-	if err != nil {
-		return nil, err
-	}
-
-	_, privatekey, err := k.NewKeyPair()
-	if err != nil {
-		return nil, err
-	}
-	var buf bytes.Buffer
-	err = pemutil.EncodePrivateKey(&buf, privatekey)
-	if err != nil {
-		return nil, err
-	}
-
-	pem := buf.String()
-	for _, v := range outputs {
-		if err := v.Write(pem); err != nil {
-			return nil, err
-		}
-	}
-	return privatekey, nil
 }

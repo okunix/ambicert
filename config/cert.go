@@ -28,6 +28,7 @@ func ReadCertConfigFile(configFile string) (CertConfig, error) {
 	}
 	return ReadCertConfig(file)
 }
+
 func ReadCertConfig(r io.Reader) (CertConfig, error) {
 	csrConfig := newDefaultCertConfig()
 	err := yaml.NewDecoder(r).Decode(&csrConfig)

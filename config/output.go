@@ -2,6 +2,7 @@ package config
 
 import (
 	"errors"
+	"os"
 
 	"github.com/okunix/ambicert/storage"
 )
@@ -20,7 +21,8 @@ type VaultOutputConfig struct {
 }
 
 type FileOutputConfig struct {
-	Path string `yaml:"path"`
+	Path string       `yaml:"path"`
+	Perm *os.FileMode `yaml:"perm,omitempty"`
 }
 
 type OutputConfig struct {
@@ -35,7 +37,11 @@ func (o OutputConfig) Output() (storage.Writable, error) {
 		if o.File == nil {
 			return nil, ErrOutputIsNotConfigured
 		}
-		return storage.NewFileStorage(o.File.Path), nil
+		var perm os.FileMode = 0600
+		if o.File.Perm != nil {
+			perm = *o.File.Perm
+		}
+		return storage.NewFileStorage(o.File.Path, perm), nil
 	case "stdout":
 		return storage.NewStdout(), nil
 	case "vault":
