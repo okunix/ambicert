@@ -1,12 +1,20 @@
-csrOutputFile: "cert.csr"
-keyOutputFile: "cert.key"
 key:
   algorithm: rsa
   rsaBitDepth: 2048
-  # mldsaParameter: 87
-  # ellipticCurve: P521
+  outputs:
+    - type: stdout
+    - type: file
+      file:
+        path: cert.key
 
-template:
+csr:
+  outputs:
+    - type: stdout
+    - type: file
+      file:
+        path: cert.csr
+        perm: 0o644
+
   signatureAlgorithm: SHA256WithRSA
 
   subject:
