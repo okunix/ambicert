@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"context"
 	"os"
 )
 
@@ -21,12 +22,12 @@ func NewFileStorage(path string, perm os.FileMode) Storage {
 // }
 
 // Read implements [Storage].
-func (f *fileStorage) Read() ([]byte, error) {
+func (f *fileStorage) Read(ctx context.Context) ([]byte, error) {
 	data, err := os.ReadFile(f.path)
 	return data, err
 }
 
 // Write implements [Storage].
-func (f *fileStorage) Write(value []byte) error {
+func (f *fileStorage) Write(ctx context.Context, value []byte) error {
 	return os.WriteFile(f.path, value, f.perm)
 }

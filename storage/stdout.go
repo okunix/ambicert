@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"context"
 	"fmt"
 )
 
@@ -11,7 +12,7 @@ func NewStdout() Writable {
 	return &stdoutStorage{}
 }
 
-func (f *stdoutStorage) Write(value []byte) error {
+func (f *stdoutStorage) Write(ctx context.Context, value []byte) error {
 	fmt.Print(string(value))
 	return nil
 }

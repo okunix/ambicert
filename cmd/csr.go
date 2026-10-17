@@ -15,6 +15,9 @@ var csrCmd = &cobra.Command{
 	Short: "generate CSR based on config",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
+		// Getting command context
+		ctx := cmd.Context()
+
 		// Retriving config file path
 		configFile := args[0]
 
@@ -56,11 +59,11 @@ var csrCmd = &cobra.Command{
 			return err
 		}
 
-		err = storage.PublishPrivateKey(privatekey, keyOutputs...)
+		err = storage.PublishPrivateKey(ctx, privatekey, keyOutputs...)
 		if err != nil {
 			return err
 		}
-		return storage.PublishCertificateRequest(generatedCsr, csrOutputs...)
+		return storage.PublishCertificateRequest(ctx, generatedCsr, csrOutputs...)
 	},
 }
 

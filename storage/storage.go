@@ -1,11 +1,13 @@
 package storage
 
+import "context"
+
 type Readable interface {
-	Read() ([]byte, error)
+	Read(ctx context.Context) ([]byte, error)
 }
 
 type Writable interface {
-	Write(value []byte) error
+	Write(ctx context.Context, value []byte) error
 }
 
 // per key storage interface
