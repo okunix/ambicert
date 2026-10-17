@@ -17,6 +17,15 @@ type KeyService interface {
 		keyGenParams keyutil.KeyGeneratorParams,
 		outputs ...storage.Writable,
 	) (crypto.PrivateKey, error)
+	CreateKeyPair(
+		ctx context.Context,
+		keyGenParams keyutil.KeyGeneratorParams,
+	) (crypto.PublicKey, crypto.PrivateKey, error)
+	PublishPrivateKey(
+		ctx context.Context,
+		privatekey crypto.PrivateKey,
+		outputs ...storage.Writable,
+	) error
 }
 
 func NewKeyService() KeyService {
@@ -28,10 +37,25 @@ func (c *keyService) CreateAndPublish(
 	keyGenParams keyutil.KeyGeneratorParams,
 	outputs ...storage.Writable,
 ) (crypto.PrivateKey, error) {
-	keygen := keyutil.NewKeyGenerator(keyGenParams)
-	_, privatekey, err := keygen.NewKeyPair()
+	_, privatekey, err := c.CreateKeyPair(ctx, keyGenParams)
 	if err != nil {
-		return privatekey, err
+		return nil, err
 	}
-	return privatekey, storage.PublishPrivateKey(ctx, privatekey, outputs...)
+	return privatekey, c.PublishPrivateKey(ctx, privatekey, outputs...)
+}
+
+func (c *keyService) CreateKeyPair(
+	ctx context.Context,
+	keyGenParams keyutil.KeyGeneratorParams,
+) (crypto.PublicKey, crypto.PrivateKey, error) {
+	keygen := keyutil.NewKeyGenerator(keyGenParams)
+	return keygen.NewKeyPair()
+}
+
+func (c *keyService) PublishPrivateKey(
+	ctx context.Context,
+	privatekey crypto.PrivateKey,
+	outputs ...storage.Writable,
+) error {
+	return storage.PublishPrivateKey(ctx, privatekey, outputs...)
 }
