@@ -4,3 +4,5 @@ build/
 .vscode/
 coverage.out
 coverage.html
+cert.key
+cert.csr
